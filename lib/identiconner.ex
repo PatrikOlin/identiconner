@@ -1,5 +1,17 @@
 defmodule Identiconner do
-  def main(input) do
+  def png(input) do
+    input
+    |> generate
+    |> save_image(input)
+  end
+
+  def base64(input) do
+    input
+    |> generate
+    |> base64_encode
+  end
+
+  defp generate(input) do
     input
     |> hash_input
     |> pick_color
@@ -7,7 +19,10 @@ defmodule Identiconner do
     |> filter_odd_squares
     |> build_pixel_map
     |> draw_image
-    |> save_image(input)
+  end
+
+  defp base64_encode(image) do
+    Base.encode64(image)
   end
 
   defp hash_input(input) do
