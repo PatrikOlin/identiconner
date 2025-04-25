@@ -1,0 +1,30 @@
+# Elixir build artifacts
+/_build/
+/cover/
+/deps/
+/doc/
+/.fetch
+erl_crash.dump
+*.ez
+*.beam
+/config/*.secret.exs
+.elixir_ls/
+
+# Git
+.git
+.gitignore
+
+# Docker files
+Dockerfile
+docker-compose.yml
+.dockerignore
+
+# Temp files
+/tmp/
+
+# Misc
+.DS_Store
+.env
+.env.*
+*.log
+README*

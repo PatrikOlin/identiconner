@@ -1,0 +1,13 @@
+version: '3'
+
+services:
+  identiconner:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "4000:4000"
+    environment:
+      - SECRET_KEY_BASE=${SECRET_KEY_BASE:-CHANGE_ME_IN_PRODUCTION_THIS_IS_NOT_SECURE}
+      - PHX_HOST=${PHX_HOST:-localhost}
+    restart: unless-stopped
