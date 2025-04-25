@@ -1,0 +1,88 @@
+defmodule IdenticonnerWeb.Plugs.RateLimit do
+  @moduledoc """
+  A plug for rate limiting API requests based on IP address.
+  Uses ETS for storage and automatically cleans up old entries.
+  """
+  import Plug.Conn
+  require Logger
+
+  @default_scale_ms 60_000 # 1 minute in milliseconds
+  @default_limit 20        # 20 requests per minute
+  @table_name :rate_limit_table
+
+  def init(opts) do
+    scale_ms = Keyword.get(opts, :scale_ms, @default_scale_ms)
+
+    limit = Keyword.get(opts, :limit, @default_limit)
+
+    %{
+      scale_ms: scale_ms,
+      limit: limit,
+    }
+  end
+
+  def call(conn, %{scale_ms: scale_ms, limit: limit}) do
+    ensure_table_exists()
+    
+    # get client IP address
+    client_ip = get_client_ip(conn)
+
+    now = System.system_time(:millisecond)
+
+    window_start = now - scale_ms
+
+    case check_rate(client_ip, now, window_start, limit) do
+      {:ok, current_count} ->
+	# add rate limit headers
+
+	conn
+	|> put_resp_header("x-ratelimit-limit", "#{limit}")
+	|> put_resp_header("x-ratelimit-remaining", "#{limit - current_count}")
+	|> put_resp_header("x-ratelimit-reset", "#{window_start + scale_ms}")
+
+      {:rate_limited, _} ->
+	conn
+	|> put_resp_content_type("application/json")
+	|> put_resp_header("x-ratelimit-limit", "#{limit}")
+	|> put_resp_header("x-ratelimit-remaining", "0")
+	|> put_resp_header("x-ratelimit-reset", "#{window_start + scale_ms}")
+	|> send_resp(429, Jason.encode!(%{error: "Too many requests. Chill out, please!"}))
+	|> halt()
+    end
+  end
+
+  defp ensure_table_exists do
+    if :ets.info(@table_name) == :undefined do
+      Logger.warning("Rate limit table does not exist. Creating it now.")
+      :ets.new(@table_name, [:set, :named_table, :public, read_concurrency: true, write_concurrency: true])
+    end
+  end
+
+  defp get_client_ip(conn) do
+    forwarded = List.first(get_req_header(conn, "x-forwarded-for"))
+
+    if forwarded do
+      forwarded
+      |> String.split(".")
+      |> List.first()
+      |> String.trim()
+    else
+      to_string(:inet.ntoa(conn.remote_ip))
+    end
+  end
+
+  defp check_rate(client_ip, now, window_start, limit) do
+    :ets.select_delete(@table_name, [{{client_ip, :"$1"}, [{:<, :"$1", window_start}], [true]}])
+
+    current_requests = :ets.select(@table_name, [{{client_ip, :"$1"}, [], [:"$1"]}])
+    current_count = length(current_requests)
+
+    if current_count >= limit do
+      {:rate_limited, current_count}
+    else
+      :ets.insert(@table_name, {client_ip, now})
+      {:ok, current_count + 1}
+    end
+  end
+
+end

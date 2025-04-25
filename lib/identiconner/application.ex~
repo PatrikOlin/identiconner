@@ -1,0 +1,13 @@
+defmodule Identiconner.Application do
+  use Application
+
+  def start(_type, _args) do
+    children = [
+      {Phoenix.PubSub, name: Identiconner.PubSub},
+      {Plug.Cowboy, scheme: :http, plug: IdenticonnerWeb.Router, options: [port: 4000]}
+    ]
+
+    opts = [strategy: :one_for_one, name: Identiconner.Supervisor]
+    Supervisor.start_link(children, opts)
+  end
+end
